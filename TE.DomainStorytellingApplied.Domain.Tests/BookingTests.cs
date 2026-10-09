@@ -185,6 +185,39 @@ public class BookingTests
         booking.Payment.ShouldBeNull();
     }
 
+    // ----- Domain events -----
+
+    [Fact]
+    public void GivenANewBooking_WhenReserving_ShouldHaveNoDomainEvents()
+    {
+        var booking = ReserveBooking();
+
+        booking.DomainEvents.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void GivenAPaymentWithinTheHoldTime_WhenPaying_ShouldRecordBookingConfirmed()
+    {
+        var booking = ReserveBooking();
+
+        booking.Pay(SwishPayment(400m, Now), Now);
+
+        var confirmed = booking.DomainEvents.ShouldHaveSingleItem().ShouldBeOfType<BookingConfirmed>();
+        confirmed.BookingId.ShouldBe(booking.Id);
+        confirmed.ContactEmail.ShouldBe("anna@example.com");
+        confirmed.Fee.ShouldBe(new Money(400m, "SEK"));
+    }
+
+    [Fact]
+    public void GivenAFailedPayment_WhenPaying_ShouldNotRecordAnEvent()
+    {
+        var booking = ReserveBooking();
+
+        Should.Throw<ArgumentException>(() => booking.Pay(SwishPayment(399m, Now), Now));
+
+        booking.DomainEvents.ShouldBeEmpty();
+    }
+
     // ----- Cancel -----
 
     [Fact]

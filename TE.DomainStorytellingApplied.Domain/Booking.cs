@@ -13,6 +13,10 @@ public sealed class Booking
     // Cancelling a confirmed booking closer to the start than this counts as late.
     private static readonly TimeSpan CancellationDeadline = TimeSpan.FromHours(48);
 
+    // Things that have happened to this booking. They are only recorded here.
+    // Reacting to them (for example sending an email) happens outside the domain.
+    private readonly List<IDomainEvent> _domainEvents = new();
+
     // Private setters: a booking can change over time, but only through its own methods.
     public Guid Id { get; private set; }
 
@@ -35,6 +39,9 @@ public sealed class Booking
 
     // True when a confirmed booking was cancelled less than 48 hours before it starts.
     public bool IsLateCancellation { get; private set; }
+
+    // Read-only from outside: only the booking itself can record an event.
+    public IReadOnlyList<IDomainEvent> DomainEvents => _domainEvents;
 
     // Private: the only way to create a booking from outside is Reserve.
     private Booking(Guid venueId, TimeSlot timeSlot, int participantCount, ContactDetails contact, Money fee, DateTime reservedUntil)
@@ -103,6 +110,8 @@ public sealed class Booking
 
         Payment = payment;
         Status = BookingStatus.Confirmed;
+
+        _domainEvents.Add(new BookingConfirmed(Id, Contact.Email, Fee));
     }
 
     // A late cancellation is allowed. The booking only records that it was late.
