@@ -24,4 +24,15 @@ public sealed record PriceList
         AssociationPerHour = associationPerHour;
         RegionPerHour = regionPerHour;
     }
+
+    public Money PerHourFor(BookerType bookerType)
+    {
+        return bookerType switch
+        {
+            BookerType.Private => PrivatePerHour,
+            BookerType.Association => AssociationPerHour,
+            BookerType.Region => RegionPerHour,
+            _ => throw new ArgumentOutOfRangeException(nameof(bookerType), "Unknown booker type.")
+        };
+    }
 }

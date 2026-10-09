@@ -88,4 +88,42 @@ public class VenueTests
 
         venue.IsOpenDuring(timeSlot).ShouldBeFalse();
     }
+
+    [Theory]
+    [InlineData(BookerType.Private, 400)]
+    [InlineData(BookerType.Association, 200)]
+    [InlineData(BookerType.Region, 100)]
+    public void GivenAOneHourSlot_WhenCalculatingFee_ShouldBeTheHourlyPriceForThatBookerType(BookerType bookerType, int expectedAmount)
+    {
+        var venue = CreateVenue();
+        var oneHour = SlotStartingAtTen(minutes: 60);
+
+        venue.CalculateFee(oneHour, bookerType).ShouldBe(new Money(expectedAmount, "SEK"));
+    }
+
+    [Fact]
+    public void GivenANinetyMinuteSlot_WhenCalculatingFee_ShouldBeOneAndAHalfTimesTheHourlyPrice()
+    {
+        var venue = CreateVenue();
+        var ninetyMinutes = SlotStartingAtTen(minutes: 90);
+
+        venue.CalculateFee(ninetyMinutes, BookerType.Private).ShouldBe(new Money(600m, "SEK"));
+    }
+
+    [Fact]
+    public void GivenAFiftyMinuteSlot_WhenCalculatingFee_ShouldBeRoundedToTwoDecimals()
+    {
+        var venue = CreateVenue();
+        var fiftyMinutes = SlotStartingAtTen(minutes: 50);
+
+        // 400 * 50 / 60 = 333.333..., which is rounded to 333.33.
+        venue.CalculateFee(fiftyMinutes, BookerType.Private).ShouldBe(new Money(333.33m, "SEK"));
+    }
+
+    private static TimeSlot SlotStartingAtTen(int minutes)
+    {
+        var start = new DateTime(2026, 10, 20, 10, 0, 0, DateTimeKind.Utc);
+
+        return new TimeSlot(start, start.AddMinutes(minutes));
+    }
 }

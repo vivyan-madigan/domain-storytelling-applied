@@ -37,4 +37,23 @@ public class PriceListTests
 
         first.ShouldBe(second);
     }
+
+    [Theory]
+    [InlineData(BookerType.Private, 400)]
+    [InlineData(BookerType.Association, 200)]
+    [InlineData(BookerType.Region, 100)]
+    public void GivenABookerType_WhenAskingForPricePerHour_ShouldReturnThatTypesPrice(BookerType bookerType, int expectedAmount)
+    {
+        var prices = new PriceList(Sek(400m), Sek(200m), Sek(100m));
+
+        prices.PerHourFor(bookerType).ShouldBe(Sek(expectedAmount));
+    }
+
+    [Fact]
+    public void GivenAnUnknownBookerType_WhenAskingForPricePerHour_ShouldThrow()
+    {
+        var prices = new PriceList(Sek(400m), Sek(200m), Sek(100m));
+
+        Should.Throw<ArgumentOutOfRangeException>(() => prices.PerHourFor((BookerType)99));
+    }
 }

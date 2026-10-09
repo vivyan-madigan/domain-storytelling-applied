@@ -28,4 +28,17 @@ public sealed record Money
         Amount = amount;
         Currency = currency;
     }
+
+    // Returns a new Money and leaves this one unchanged. The result is rounded to whole öre (two decimals).
+    public Money Multiply(decimal factor)
+    {
+        if (factor < 0)
+        {
+            throw new ArgumentException("Cannot multiply money by a negative number.", nameof(factor));
+        }
+
+        var rounded = Math.Round(Amount * factor, 2, MidpointRounding.AwayFromZero);
+
+        return new Money(rounded, Currency);
+    }
 }

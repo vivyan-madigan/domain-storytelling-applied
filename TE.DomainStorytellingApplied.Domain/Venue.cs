@@ -41,4 +41,12 @@ public sealed class Venue
     {
         return OpeningHours.Covers(timeSlot);
     }
+
+    // The fee is the hourly price for this type of booker, times the length of the slot in hours.
+    public Money CalculateFee(TimeSlot timeSlot, BookerType bookerType)
+    {
+        var hours = (decimal)timeSlot.Duration.TotalMinutes / 60m;
+
+        return Prices.PerHourFor(bookerType).Multiply(hours);
+    }
 }
