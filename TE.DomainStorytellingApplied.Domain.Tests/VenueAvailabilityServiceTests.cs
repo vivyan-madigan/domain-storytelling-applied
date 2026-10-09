@@ -14,16 +14,6 @@ public class VenueAvailabilityServiceTests
             new DateTime(2026, 10, 20, endHour, 0, 0, DateTimeKind.Utc));
     }
 
-    private static Venue CreateVenue()
-    {
-        return new Venue(
-            "Sporthallen Norr",
-            30,
-            new OpeningHours(new TimeOnly(8, 0), new TimeOnly(22, 0)),
-            new PriceList(new Money(400m, "SEK"), new Money(200m, "SEK"), new Money(100m, "SEK")),
-            [BookerType.Private, BookerType.Association]);
-    }
-
     // An unpaid booking of the venue, with a fee of 400 SEK per hour.
     private static Booking ReserveBooking(Venue venue, TimeSlot timeSlot)
     {
@@ -35,7 +25,7 @@ public class VenueAvailabilityServiceTests
     [Fact]
     public void GivenNoBookings_WhenCheckingAvailability_ShouldBeAvailable()
     {
-        var venue = CreateVenue();
+        var venue = TestData.CreateVenue();
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, []).ShouldBeTrue();
     }
@@ -43,7 +33,7 @@ public class VenueAvailabilityServiceTests
     [Fact]
     public void GivenAReservedBookingAtTheSameTime_WhenCheckingAvailability_ShouldNotBeAvailable()
     {
-        var venue = CreateVenue();
+        var venue = TestData.CreateVenue();
         var existing = ReserveBooking(venue, RequestedSlot);
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, [existing]).ShouldBeFalse();
@@ -52,7 +42,7 @@ public class VenueAvailabilityServiceTests
     [Fact]
     public void GivenAConfirmedBookingAtTheSameTime_WhenCheckingAvailability_ShouldNotBeAvailable()
     {
-        var venue = CreateVenue();
+        var venue = TestData.CreateVenue();
         var existing = ReserveBooking(venue, RequestedSlot);
         existing.Pay(new Payment(existing.Fee, PaymentMethod.Swish, Now), Now);
 
@@ -62,7 +52,7 @@ public class VenueAvailabilityServiceTests
     [Fact]
     public void GivenACancelledBookingAtTheSameTime_WhenCheckingAvailability_ShouldBeAvailable()
     {
-        var venue = CreateVenue();
+        var venue = TestData.CreateVenue();
         var existing = ReserveBooking(venue, RequestedSlot);
         existing.Cancel(Now);
 
@@ -72,7 +62,7 @@ public class VenueAvailabilityServiceTests
     [Fact]
     public void GivenAnExpiredBookingAtTheSameTime_WhenCheckingAvailability_ShouldBeAvailable()
     {
-        var venue = CreateVenue();
+        var venue = TestData.CreateVenue();
         var existing = ReserveBooking(venue, RequestedSlot);
         existing.Expire(Now.AddMinutes(16));
 
@@ -82,7 +72,7 @@ public class VenueAvailabilityServiceTests
     [Fact]
     public void GivenABookingThatEndsWhenTheRequestedSlotStarts_WhenCheckingAvailability_ShouldBeAvailable()
     {
-        var venue = CreateVenue();
+        var venue = TestData.CreateVenue();
         var existing = ReserveBooking(venue, SlotBetween(9, 10));
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, [existing]).ShouldBeTrue();
@@ -91,7 +81,7 @@ public class VenueAvailabilityServiceTests
     [Fact]
     public void GivenABookingThatPartlyOverlaps_WhenCheckingAvailability_ShouldNotBeAvailable()
     {
-        var venue = CreateVenue();
+        var venue = TestData.CreateVenue();
         var existing = ReserveBooking(venue, SlotBetween(9, 11));
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, [existing]).ShouldBeFalse();
@@ -100,8 +90,8 @@ public class VenueAvailabilityServiceTests
     [Fact]
     public void GivenABookingAtTheSameTimeInAnotherVenue_WhenCheckingAvailability_ShouldBeAvailable()
     {
-        var venue = CreateVenue();
-        var otherVenue = CreateVenue();
+        var venue = TestData.CreateVenue();
+        var otherVenue = TestData.CreateVenue();
         var existing = ReserveBooking(otherVenue, RequestedSlot);
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, [existing]).ShouldBeTrue();
