@@ -21,4 +21,12 @@ public sealed record OpeningHours
         Opens = opens;
         Closes = closes;
     }
+
+    // A slot is covered when it starts and ends on the same day, and lies within the opening hours.
+    public bool Covers(TimeSlot timeSlot)
+    {
+        return timeSlot.Start.Date == timeSlot.End.Date
+            && TimeOnly.FromDateTime(timeSlot.Start) >= Opens
+            && TimeOnly.FromDateTime(timeSlot.End) <= Closes;
+    }
 }

@@ -66,4 +66,26 @@ public class VenueTests
         first.ShouldNotBe(second);
         first.Id.ShouldNotBe(second.Id);
     }
+
+    [Fact]
+    public void GivenATimeSlotWithinOpeningHours_WhenAskingIsOpenDuring_ShouldBeTrue()
+    {
+        var venue = CreateVenue();
+        var timeSlot = new TimeSlot(
+            new DateTime(2026, 10, 20, 10, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 10, 20, 11, 0, 0, DateTimeKind.Utc));
+
+        venue.IsOpenDuring(timeSlot).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void GivenATimeSlotBeforeOpening_WhenAskingIsOpenDuring_ShouldBeFalse()
+    {
+        var venue = CreateVenue();
+        var timeSlot = new TimeSlot(
+            new DateTime(2026, 10, 20, 6, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 10, 20, 7, 0, 0, DateTimeKind.Utc));
+
+        venue.IsOpenDuring(timeSlot).ShouldBeFalse();
+    }
 }

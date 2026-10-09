@@ -36,4 +36,9 @@ public sealed class Venue
         OpeningHours = openingHours;
         Prices = prices;
     }
+
+    public bool IsOpenDuring(TimeSlot timeSlot)
+    {
+        return OpeningHours.Covers(timeSlot);
+    }
 }
