@@ -10,6 +10,9 @@ public sealed class Booking
     // How long a new booking holds its time before it must be paid.
     private static readonly TimeSpan ReservationHoldTime = TimeSpan.FromMinutes(15);
 
+    // Cancelling a confirmed booking closer to the start than this counts as late.
+    private static readonly TimeSpan CancellationDeadline = TimeSpan.FromHours(48);
+
     // Private setters: a booking can change over time, but only through its own methods.
     public Guid Id { get; private set; }
 
@@ -29,6 +32,9 @@ public sealed class Booking
 
     // Null until the booking is paid.
     public Payment? Payment { get; private set; }
+
+    // True when a confirmed booking was cancelled less than 48 hours before it starts.
+    public bool IsLateCancellation { get; private set; }
 
     // Private: the only way to create a booking from outside is Reserve.
     private Booking(Guid venueId, TimeSlot timeSlot, int participantCount, ContactDetails contact, Money fee, DateTime reservedUntil)
@@ -97,5 +103,20 @@ public sealed class Booking
 
         Payment = payment;
         Status = BookingStatus.Confirmed;
+    }
+
+    // A late cancellation is allowed. The booking only records that it was late.
+    // What that costs the booker is decided somewhere else.
+    public void Cancel(DateTime now)
+    {
+        if (Status == BookingStatus.Cancelled)
+        {
+            throw new InvalidOperationException("The booking is already cancelled.");
+        }
+
+        var timeUntilStart = TimeSlot.Start - now;
+
+        IsLateCancellation = Status == BookingStatus.Confirmed && timeUntilStart < CancellationDeadline;
+        Status = BookingStatus.Cancelled;
     }
 }

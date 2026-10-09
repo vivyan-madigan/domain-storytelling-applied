@@ -29,6 +29,15 @@ public class BookingTests
         return Booking.Reserve(CreateVenue(), BookerType.Private, Slot, 10, Contact, Now);
     }
 
+    // The same booking, paid straight away.
+    private static Booking ReserveAndPayBooking()
+    {
+        var booking = ReserveBooking();
+        booking.Pay(SwishPayment(400m, Now), Now);
+
+        return booking;
+    }
+
     private static Payment SwishPayment(decimal amount, DateTime paidAt)
     {
         return new Payment(new Money(amount, "SEK"), PaymentMethod.Swish, paidAt);
@@ -174,5 +183,78 @@ public class BookingTests
 
         booking.Status.ShouldBe(BookingStatus.Reserved);
         booking.Payment.ShouldBeNull();
+    }
+
+    // ----- Cancel -----
+
+    [Fact]
+    public void GivenAReservedBooking_WhenCancelling_ShouldBeCancelledAndNotLate()
+    {
+        var booking = ReserveBooking();
+
+        booking.Cancel(Now);
+
+        booking.Status.ShouldBe(BookingStatus.Cancelled);
+        booking.IsLateCancellation.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void GivenAConfirmedBookingMoreThan48HoursBeforeStart_WhenCancelling_ShouldNotBeLate()
+    {
+        var booking = ReserveAndPayBooking();
+
+        booking.Cancel(Slot.Start.AddHours(-49));
+
+        booking.Status.ShouldBe(BookingStatus.Cancelled);
+        booking.IsLateCancellation.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void GivenAConfirmedBookingExactly48HoursBeforeStart_WhenCancelling_ShouldNotBeLate()
+    {
+        var booking = ReserveAndPayBooking();
+
+        booking.Cancel(Slot.Start.AddHours(-48));
+
+        booking.IsLateCancellation.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void GivenAConfirmedBookingLessThan48HoursBeforeStart_WhenCancelling_ShouldBeLate()
+    {
+        var booking = ReserveAndPayBooking();
+
+        booking.Cancel(Slot.Start.AddHours(-47));
+
+        booking.Status.ShouldBe(BookingStatus.Cancelled);
+        booking.IsLateCancellation.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void GivenAnUnpaidBookingLessThan48HoursBeforeStart_WhenCancelling_ShouldNotBeLate()
+    {
+        var booking = ReserveBooking();
+
+        booking.Cancel(Slot.Start.AddHours(-1));
+
+        booking.IsLateCancellation.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void GivenACancelledBooking_WhenCancellingAgain_ShouldThrow()
+    {
+        var booking = ReserveBooking();
+        booking.Cancel(Now);
+
+        Should.Throw<InvalidOperationException>(() => booking.Cancel(Now));
+    }
+
+    [Fact]
+    public void GivenACancelledBooking_WhenPaying_ShouldThrow()
+    {
+        var booking = ReserveBooking();
+        booking.Cancel(Now);
+
+        Should.Throw<InvalidOperationException>(() => booking.Pay(SwishPayment(400m, Now), Now));
     }
 }
