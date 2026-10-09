@@ -23,4 +23,10 @@ public sealed record TimeSlot
     }
 
     public TimeSpan Duration => End - Start;
+
+    // Two slots that only touch (one ends exactly when the other starts) do not overlap.
+    public bool OverlapsWith(TimeSlot other)
+    {
+        return Start < other.End && other.Start < End;
+    }
 }
