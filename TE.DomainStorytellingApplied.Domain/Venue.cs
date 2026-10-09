@@ -7,6 +7,8 @@ namespace TE.DomainStorytellingApplied.Domain;
 /// </summary>
 public sealed class Venue
 {
+    private readonly List<BookerType> _allowedBookerTypes;
+
     // Private setters: a venue can change over time, but only through its own methods.
     public Guid Id { get; private set; }
 
@@ -18,7 +20,9 @@ public sealed class Venue
 
     public PriceList Prices { get; private set; }
 
-    public Venue(string name, int capacity, OpeningHours openingHours, PriceList prices)
+    public bool IsActive { get; private set; }
+
+    public Venue(string name, int capacity, OpeningHours openingHours, PriceList prices, IEnumerable<BookerType> allowedBookerTypes)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -35,6 +39,15 @@ public sealed class Venue
         Capacity = capacity;
         OpeningHours = openingHours;
         Prices = prices;
+        IsActive = true;
+
+        // A copy, so nobody can change the allowed types from outside after the venue is created.
+        _allowedBookerTypes = new List<BookerType>(allowedBookerTypes);
+    }
+
+    public bool CanBeBookedBy(BookerType bookerType)
+    {
+        return IsActive && _allowedBookerTypes.Contains(bookerType);
     }
 
     public bool IsOpenDuring(TimeSlot timeSlot)
@@ -45,8 +58,14 @@ public sealed class Venue
     // The fee is the hourly price for this type of booker, times the length of the slot in hours.
     public Money CalculateFee(TimeSlot timeSlot, BookerType bookerType)
     {
-        var hours = (decimal)timeSlot.Duration.TotalMinutes / 60m;
+        var hours = (decimal)timeSlot.Duration.TotalHours;
 
         return Prices.PerHourFor(bookerType).Multiply(hours);
+    }
+
+    // A deactivated venue cannot be booked. Bookings already made are not touched.
+    public void Deactivate()
+    {
+        IsActive = false;
     }
 }

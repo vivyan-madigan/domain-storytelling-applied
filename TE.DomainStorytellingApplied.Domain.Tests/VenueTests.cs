@@ -9,9 +9,10 @@ public class VenueTests
         new Money(200m, "SEK"),
         new Money(100m, "SEK"));
 
+    // Private persons and associations may book. Regions may not.
     private static Venue CreateVenue(string name = "Sporthallen Norr", int capacity = 30)
     {
-        return new Venue(name, capacity, EightToTen, Prices);
+        return new Venue(name, capacity, EightToTen, Prices, [BookerType.Private, BookerType.Association]);
     }
 
     [Theory]
@@ -118,6 +119,43 @@ public class VenueTests
 
         // 400 * 50 / 60 = 333.333..., which is rounded to 333.33.
         venue.CalculateFee(fiftyMinutes, BookerType.Private).ShouldBe(new Money(333.33m, "SEK"));
+    }
+
+    [Fact]
+    public void GivenANewVenue_WhenCreating_ShouldBeActive()
+    {
+        var venue = CreateVenue();
+
+        venue.IsActive.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(BookerType.Private)]
+    [InlineData(BookerType.Association)]
+    public void GivenAnAllowedBookerType_WhenAskingCanBeBookedBy_ShouldBeTrue(BookerType bookerType)
+    {
+        var venue = CreateVenue();
+
+        venue.CanBeBookedBy(bookerType).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void GivenABookerTypeThatIsNotAllowed_WhenAskingCanBeBookedBy_ShouldBeFalse()
+    {
+        var venue = CreateVenue();
+
+        venue.CanBeBookedBy(BookerType.Region).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void GivenADeactivatedVenue_WhenAskingCanBeBookedBy_ShouldBeFalse()
+    {
+        var venue = CreateVenue();
+
+        venue.Deactivate();
+
+        venue.IsActive.ShouldBeFalse();
+        venue.CanBeBookedBy(BookerType.Private).ShouldBeFalse();
     }
 
     private static TimeSlot SlotStartingAtTen(int minutes)
