@@ -257,4 +257,77 @@ public class BookingTests
 
         Should.Throw<InvalidOperationException>(() => booking.Pay(SwishPayment(400m, Now), Now));
     }
+
+    // ----- Expire -----
+
+    [Fact]
+    public void GivenAnUnpaidBookingAfterTheHoldTime_WhenExpiring_ShouldBeExpired()
+    {
+        var booking = ReserveBooking();
+
+        booking.Expire(Now.AddMinutes(16));
+
+        booking.Status.ShouldBe(BookingStatus.Expired);
+    }
+
+    [Fact]
+    public void GivenAnUnpaidBookingExactlyWhenTheHoldEnds_WhenExpiring_ShouldStayReserved()
+    {
+        var booking = ReserveBooking();
+
+        booking.Expire(Now.AddMinutes(15));
+
+        booking.Status.ShouldBe(BookingStatus.Reserved);
+    }
+
+    [Fact]
+    public void GivenAnUnpaidBookingWithinTheHoldTime_WhenExpiring_ShouldStayReserved()
+    {
+        var booking = ReserveBooking();
+
+        booking.Expire(Now.AddMinutes(5));
+
+        booking.Status.ShouldBe(BookingStatus.Reserved);
+    }
+
+    [Fact]
+    public void GivenAConfirmedBooking_WhenExpiring_ShouldStayConfirmed()
+    {
+        var booking = ReserveAndPayBooking();
+
+        booking.Expire(Now.AddMinutes(16));
+
+        booking.Status.ShouldBe(BookingStatus.Confirmed);
+    }
+
+    [Fact]
+    public void GivenACancelledBooking_WhenExpiring_ShouldStayCancelled()
+    {
+        var booking = ReserveBooking();
+        booking.Cancel(Now);
+
+        booking.Expire(Now.AddMinutes(16));
+
+        booking.Status.ShouldBe(BookingStatus.Cancelled);
+    }
+
+    [Fact]
+    public void GivenAnExpiredBooking_WhenPaying_ShouldThrow()
+    {
+        var booking = ReserveBooking();
+        var later = Now.AddMinutes(16);
+        booking.Expire(later);
+
+        Should.Throw<InvalidOperationException>(() => booking.Pay(SwishPayment(400m, later), later));
+    }
+
+    [Fact]
+    public void GivenAnExpiredBooking_WhenCancelling_ShouldThrow()
+    {
+        var booking = ReserveBooking();
+        var later = Now.AddMinutes(16);
+        booking.Expire(later);
+
+        Should.Throw<InvalidOperationException>(() => booking.Cancel(later));
+    }
 }

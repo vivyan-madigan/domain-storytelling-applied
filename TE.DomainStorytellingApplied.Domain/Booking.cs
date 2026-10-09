@@ -109,14 +109,24 @@ public sealed class Booking
     // What that costs the booker is decided somewhere else.
     public void Cancel(DateTime now)
     {
-        if (Status == BookingStatus.Cancelled)
+        if (Status == BookingStatus.Cancelled || Status == BookingStatus.Expired)
         {
-            throw new InvalidOperationException("The booking is already cancelled.");
+            throw new InvalidOperationException("The booking is already closed.");
         }
 
         var timeUntilStart = TimeSlot.Start - now;
 
         IsLateCancellation = Status == BookingStatus.Confirmed && timeUntilStart < CancellationDeadline;
         Status = BookingStatus.Cancelled;
+    }
+
+    // Releases a reservation that was not paid in time. For any other booking it does nothing,
+    // so it is safe to call on every booking without checking first.
+    public void Expire(DateTime now)
+    {
+        if (Status == BookingStatus.Reserved && now > ReservedUntil)
+        {
+            Status = BookingStatus.Expired;
+        }
     }
 }
