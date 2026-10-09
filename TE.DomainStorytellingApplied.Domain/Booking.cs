@@ -7,6 +7,9 @@ namespace TE.DomainStorytellingApplied.Domain;
 /// </summary>
 public sealed class Booking
 {
+    // How long a new booking holds its time before it must be paid.
+    private static readonly TimeSpan ReservationHoldTime = TimeSpan.FromMinutes(15);
+
     // Private setters: a booking can change over time, but only through its own methods.
     public Guid Id { get; private set; }
 
@@ -20,8 +23,15 @@ public sealed class Booking
 
     public Money Fee { get; private set; }
 
+    public BookingStatus Status { get; private set; }
+
+    public DateTime ReservedUntil { get; private set; }
+
+    // Null until the booking is paid.
+    public Payment? Payment { get; private set; }
+
     // Private: the only way to create a booking from outside is Reserve.
-    private Booking(Guid venueId, TimeSlot timeSlot, int participantCount, ContactDetails contact, Money fee)
+    private Booking(Guid venueId, TimeSlot timeSlot, int participantCount, ContactDetails contact, Money fee, DateTime reservedUntil)
     {
         Id = Guid.NewGuid();
         VenueId = venueId;
@@ -29,6 +39,8 @@ public sealed class Booking
         ParticipantCount = participantCount;
         Contact = contact;
         Fee = fee;
+        Status = BookingStatus.Reserved;
+        ReservedUntil = reservedUntil;
     }
 
     public static Booking Reserve(
@@ -36,7 +48,8 @@ public sealed class Booking
         BookerType bookerType,
         TimeSlot timeSlot,
         int participantCount,
-        ContactDetails contact)
+        ContactDetails contact,
+        DateTime now)
     {
         if (!venue.CanBeBookedBy(bookerType))
         {
@@ -61,6 +74,28 @@ public sealed class Booking
         // The fee is copied, so a later price change on the venue does not touch this booking.
         var fee = venue.CalculateFee(timeSlot, bookerType);
 
-        return new Booking(venue.Id, timeSlot, participantCount, contact, fee);
+        return new Booking(venue.Id, timeSlot, participantCount, contact, fee, now + ReservationHoldTime);
+    }
+
+    // Paying confirms the booking. The current time is passed in, so the rule can be tested without waiting.
+    public void Pay(Payment payment, DateTime now)
+    {
+        if (Status != BookingStatus.Reserved)
+        {
+            throw new InvalidOperationException("Only a reserved booking can be paid.");
+        }
+
+        if (now > ReservedUntil)
+        {
+            throw new InvalidOperationException("The reservation has run out.");
+        }
+
+        if (payment.Amount != Fee)
+        {
+            throw new ArgumentException("The amount does not match the fee.", nameof(payment));
+        }
+
+        Payment = payment;
+        Status = BookingStatus.Confirmed;
     }
 }
