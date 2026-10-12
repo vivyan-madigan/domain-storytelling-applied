@@ -14,15 +14,18 @@ public sealed class ReserveBookingCommandHandler
 {
     private readonly IVenueRepository _venueRepository;
     private readonly IBookingRepository _bookingRepository;
+    private readonly ICurrentUser _currentUser;
     private readonly TimeProvider _timeProvider;
 
     public ReserveBookingCommandHandler(
         IVenueRepository venueRepository,
         IBookingRepository bookingRepository,
+        ICurrentUser currentUser,
         TimeProvider timeProvider)
     {
         _venueRepository = venueRepository;
         _bookingRepository = bookingRepository;
+        _currentUser = currentUser;
         _timeProvider = timeProvider;
     }
 
@@ -45,7 +48,7 @@ public sealed class ReserveBookingCommandHandler
         }
 
         // 4. The rules that belong to one booking
-        var booking = Booking.Reserve(venue, command.BookerType, timeSlot, command.ParticipantCount, contact, now);
+        var booking = Booking.Reserve(venue, _currentUser.BookerType, timeSlot, command.ParticipantCount, contact, now);
 
         // 5. Save
         await _bookingRepository.AddAsync(booking, cancellationToken);
@@ -65,6 +68,7 @@ public sealed class ReserveBookingCommandHandler
 | `ReserveBookingCommand` | No | Application |
 | `ReserveBookingCommandHandler` | No | Application |
 | `IVenueRepository`, `IBookingRepository` | No | The interface in Application, the class that talks to the database in Infrastructure |
+| `ICurrentUser` | No | The interface in Application, the class that reads the login token in Web |
 | `TimeProvider` | Built into .NET | |
 
 ## Where each parameter of `Booking.Reserve` comes from
@@ -72,7 +76,7 @@ public sealed class ReserveBookingCommandHandler
 | Parameter | Where the handler gets it |
 |---|---|
 | `venue` | Loaded from the database, using the venue id the user picked |
-| `bookerType` | From the account of the logged-in user |
+| `bookerType` | From `ICurrentUser`, which reads it from the login token. It is not on the command, so the user cannot type it in. See `ExampleCurrentUserFromJwt.md` |
 | `timeSlot` | Built from the start and end the user chose |
 | `participantCount` | Typed in by the user |
 | `contact` | Built from the form fields |
@@ -99,6 +103,7 @@ domain does the thinking.
 |---|---|---|
 | Provide the venue | A repository | `CreateVenue()` in the test |
 | Provide `now` | `TimeProvider` | The `Now` constant in the test |
+| Provide the booker type | `ICurrentUser` | `BookerType.Private` written in the test |
 | Check availability | The handler calls `VenueAvailabilityService` | The test calls it |
 | Call `Booking.Reserve` | The handler | The test |
 | Save the booking | A repository | Nothing, the test just looks at it |
