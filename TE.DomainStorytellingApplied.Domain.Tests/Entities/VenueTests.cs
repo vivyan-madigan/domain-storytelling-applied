@@ -145,6 +145,115 @@ public class VenueTests
         venue.CanBeBookedBy(BookerType.Private).ShouldBeFalse();
     }
 
+    // ----- Change opening hours -----
+
+    [Fact]
+    public void GivenNoBookings_WhenChangingOpeningHours_ShouldReplaceThemAndStayTheSameVenue()
+    {
+        var venue = TestData.CreateVenue();
+        var idBefore = venue.Id;
+
+        venue.ChangeOpeningHours(ShorterHours, [], Now);
+
+        venue.OpeningHours.ShouldBe(ShorterHours);
+        venue.Id.ShouldBe(idBefore);
+    }
+
+    [Fact]
+    public void GivenChangedOpeningHours_WhenAskingIsOpenDuring_ShouldAnswerWithTheNewHours()
+    {
+        var venue = TestData.CreateVenue();
+
+        venue.ChangeOpeningHours(ShorterHours, [], Now);
+
+        // 20:00 to 21:00 was open before the change, when the venue closed at 22:00.
+        venue.IsOpenDuring(EveningSlot).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void GivenABookingOutsideTheNewHours_WhenChangingOpeningHours_ShouldThrowAndKeepTheOldHours()
+    {
+        var venue = TestData.CreateVenue();
+        var eveningBooking = ReserveBooking(venue, EveningSlot);
+
+        Should.Throw<InvalidOperationException>(() => venue.ChangeOpeningHours(ShorterHours, [eveningBooking], Now));
+
+        venue.OpeningHours.ShouldBe(TestData.OpeningHours);
+    }
+
+    [Fact]
+    public void GivenABookingWithinTheNewHours_WhenChangingOpeningHours_ShouldBeAllowed()
+    {
+        var venue = TestData.CreateVenue();
+        var middayBooking = ReserveBooking(venue, SlotStartingAtTen(minutes: 60));
+
+        venue.ChangeOpeningHours(ShorterHours, [middayBooking], Now);
+
+        venue.OpeningHours.ShouldBe(ShorterHours);
+    }
+
+    [Fact]
+    public void GivenACancelledBookingOutsideTheNewHours_WhenChangingOpeningHours_ShouldBeAllowed()
+    {
+        var venue = TestData.CreateVenue();
+        var eveningBooking = ReserveBooking(venue, EveningSlot);
+        eveningBooking.Cancel(Now);
+
+        venue.ChangeOpeningHours(ShorterHours, [eveningBooking], Now);
+
+        venue.OpeningHours.ShouldBe(ShorterHours);
+    }
+
+    [Fact]
+    public void GivenABookingOutsideTheNewHoursThatIsOver_WhenChangingOpeningHours_ShouldBeAllowed()
+    {
+        var venue = TestData.CreateVenue();
+        var eveningBooking = ReserveBooking(venue, EveningSlot);
+        var theDayAfter = EveningSlot.End.AddDays(1);
+
+        venue.ChangeOpeningHours(ShorterHours, [eveningBooking], theDayAfter);
+
+        venue.OpeningHours.ShouldBe(ShorterHours);
+    }
+
+    [Fact]
+    public void GivenABookingOutsideTheNewHoursInAnotherVenue_WhenChangingOpeningHours_ShouldBeAllowed()
+    {
+        var venue = TestData.CreateVenue();
+        var otherVenue = TestData.CreateVenue();
+        var eveningBooking = ReserveBooking(otherVenue, EveningSlot);
+
+        venue.ChangeOpeningHours(ShorterHours, [eveningBooking], Now);
+
+        venue.OpeningHours.ShouldBe(ShorterHours);
+    }
+
+    [Fact]
+    public void GivenADeactivatedVenue_WhenChangingOpeningHours_ShouldThrow()
+    {
+        var venue = TestData.CreateVenue();
+        venue.Deactivate();
+
+        Should.Throw<InvalidOperationException>(() => venue.ChangeOpeningHours(ShorterHours, [], Now));
+    }
+
+    private static readonly DateTime Now = new(2026, 10, 12, 9, 0, 0, DateTimeKind.Utc);
+
+    // Open 09:00 to 20:00, where TestData has 08:00 to 22:00.
+    private static readonly OpeningHours ShorterHours = new(new TimeOnly(9, 0), new TimeOnly(20, 0));
+
+    // 20:00 to 21:00: open with the hours in TestData, closed with ShorterHours.
+    private static readonly TimeSlot EveningSlot = new(
+        new DateTime(2026, 10, 20, 20, 0, 0, DateTimeKind.Utc),
+        new DateTime(2026, 10, 20, 21, 0, 0, DateTimeKind.Utc));
+
+    private static Booking ReserveBooking(Venue venue, TimeSlot timeSlot)
+    {
+        var contact = new ContactDetails("Anna Andersson", "anna@example.com", "070-000 00 00");
+
+        return Booking.Reserve(venue, BookerType.Private, timeSlot, 10, contact, Now);
+    }
+
     private static TimeSlot SlotStartingAtTen(int minutes)
     {
         var start = new DateTime(2026, 10, 20, 10, 0, 0, DateTimeKind.Utc);

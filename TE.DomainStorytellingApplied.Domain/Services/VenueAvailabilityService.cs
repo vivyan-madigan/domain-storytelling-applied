@@ -14,9 +14,7 @@ public static class VenueAvailabilityService
             var isForThisVenue = booking.VenueId == venueId;
 
             // A cancelled or expired booking has given its time back.
-            var isHoldingItsTime = booking.Status == BookingStatus.Reserved || booking.Status == BookingStatus.Confirmed;
-
-            if (isForThisVenue && isHoldingItsTime && booking.TimeSlot.OverlapsWith(timeSlot))
+            if (isForThisVenue && booking.IsHoldingItsTime && booking.TimeSlot.OverlapsWith(timeSlot))
             {
                 return false;
             }

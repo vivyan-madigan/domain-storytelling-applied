@@ -63,6 +63,34 @@ public sealed class Venue
         return Prices.PerHourFor(bookerType).Multiply(hours);
     }
 
+    // The opening hours are not edited, they are replaced. OpeningHours has no setters,
+    // so the venue takes a whole new one. The hours themselves need no check here, because
+    // an invalid OpeningHours cannot exist.
+    // A booking that is still to come and falls outside the new hours stops the change,
+    // so nobody is left with a booking for a time the venue is closed.
+    public void ChangeOpeningHours(OpeningHours openingHours, IEnumerable<Booking> existingBookings, DateTime now)
+    {
+        if (!IsActive)
+        {
+            throw new InvalidOperationException("A deactivated venue cannot change its opening hours.");
+        }
+
+        foreach (var booking in existingBookings)
+        {
+            var isForThisVenue = booking.VenueId == Id;
+
+            // A booking that is over can no longer be affected.
+            var isStillToCome = booking.TimeSlot.End > now;
+
+            if (isForThisVenue && booking.IsHoldingItsTime && isStillToCome && !openingHours.Covers(booking.TimeSlot))
+            {
+                throw new InvalidOperationException($"{Name} has a booking outside the new opening hours.");
+            }
+        }
+
+        OpeningHours = openingHours;
+    }
+
     // A deactivated venue cannot be booked. Bookings already made are not touched.
     public void Deactivate()
     {
