@@ -5,6 +5,11 @@ namespace TE.DomainStorytellingApplied.Domain.Tests;
 /// </summary>
 public static class TestData
 {
+    // The moment the tests count as now, eight days before the slots they book.
+    public static readonly DateTime Now = new(2026, 10, 12, 9, 0, 0, DateTimeKind.Utc);
+
+    public static readonly ContactDetails Contact = new("Anna Andersson", "anna@example.com", "070-000 00 00");
+
     public static readonly OpeningHours OpeningHours = new(new TimeOnly(8, 0), new TimeOnly(22, 0));
 
     // Per hour: 400 SEK for private persons, 200 SEK for associations, 100 SEK for regions.
@@ -19,5 +24,11 @@ public static class TestData
     public static Venue CreateVenue(string name = "Sporthallen Norr", int capacity = 30)
     {
         return new Venue(name, capacity, OpeningHours, Prices, [BookerType.Private, BookerType.Association]);
+    }
+
+    // An unpaid booking of the venue by a private person, for 10 people, reserved at Now.
+    public static Booking ReserveBooking(Venue venue, TimeSlot timeSlot)
+    {
+        return Booking.Reserve(venue, BookerType.Private, timeSlot, 10, Contact, Now);
     }
 }

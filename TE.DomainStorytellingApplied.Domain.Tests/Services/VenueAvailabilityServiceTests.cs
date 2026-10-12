@@ -2,7 +2,7 @@ namespace TE.DomainStorytellingApplied.Domain.Tests;
 
 public class VenueAvailabilityServiceTests
 {
-    private static readonly DateTime Now = new(2026, 10, 12, 9, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Now = TestData.Now;
 
     // The slot somebody wants to book: 10:00 to 11:00.
     private static readonly TimeSlot RequestedSlot = SlotBetween(10, 11);
@@ -12,14 +12,6 @@ public class VenueAvailabilityServiceTests
         return new TimeSlot(
             new DateTime(2026, 10, 20, startHour, 0, 0, DateTimeKind.Utc),
             new DateTime(2026, 10, 20, endHour, 0, 0, DateTimeKind.Utc));
-    }
-
-    // An unpaid booking of the venue, with a fee of 400 SEK per hour.
-    private static Booking ReserveBooking(Venue venue, TimeSlot timeSlot)
-    {
-        var contact = new ContactDetails("Anna Andersson", "anna@example.com", "070-000 00 00");
-
-        return Booking.Reserve(venue, BookerType.Private, timeSlot, 10, contact, Now);
     }
 
     [Fact]
@@ -34,7 +26,7 @@ public class VenueAvailabilityServiceTests
     public void GivenAReservedBookingAtTheSameTime_WhenCheckingAvailability_ShouldNotBeAvailable()
     {
         var venue = TestData.CreateVenue();
-        var existing = ReserveBooking(venue, RequestedSlot);
+        var existing = TestData.ReserveBooking(venue, RequestedSlot);
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, [existing]).ShouldBeFalse();
     }
@@ -43,7 +35,7 @@ public class VenueAvailabilityServiceTests
     public void GivenAConfirmedBookingAtTheSameTime_WhenCheckingAvailability_ShouldNotBeAvailable()
     {
         var venue = TestData.CreateVenue();
-        var existing = ReserveBooking(venue, RequestedSlot);
+        var existing = TestData.ReserveBooking(venue, RequestedSlot);
         existing.Pay(new Payment(existing.Fee, PaymentMethod.Swish, Now), Now);
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, [existing]).ShouldBeFalse();
@@ -53,7 +45,7 @@ public class VenueAvailabilityServiceTests
     public void GivenACancelledBookingAtTheSameTime_WhenCheckingAvailability_ShouldBeAvailable()
     {
         var venue = TestData.CreateVenue();
-        var existing = ReserveBooking(venue, RequestedSlot);
+        var existing = TestData.ReserveBooking(venue, RequestedSlot);
         existing.Cancel(Now);
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, [existing]).ShouldBeTrue();
@@ -63,7 +55,7 @@ public class VenueAvailabilityServiceTests
     public void GivenAnExpiredBookingAtTheSameTime_WhenCheckingAvailability_ShouldBeAvailable()
     {
         var venue = TestData.CreateVenue();
-        var existing = ReserveBooking(venue, RequestedSlot);
+        var existing = TestData.ReserveBooking(venue, RequestedSlot);
         existing.Expire(Now.AddMinutes(16));
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, [existing]).ShouldBeTrue();
@@ -73,7 +65,7 @@ public class VenueAvailabilityServiceTests
     public void GivenABookingThatEndsWhenTheRequestedSlotStarts_WhenCheckingAvailability_ShouldBeAvailable()
     {
         var venue = TestData.CreateVenue();
-        var existing = ReserveBooking(venue, SlotBetween(9, 10));
+        var existing = TestData.ReserveBooking(venue, SlotBetween(9, 10));
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, [existing]).ShouldBeTrue();
     }
@@ -82,7 +74,7 @@ public class VenueAvailabilityServiceTests
     public void GivenABookingThatPartlyOverlaps_WhenCheckingAvailability_ShouldNotBeAvailable()
     {
         var venue = TestData.CreateVenue();
-        var existing = ReserveBooking(venue, SlotBetween(9, 11));
+        var existing = TestData.ReserveBooking(venue, SlotBetween(9, 11));
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, [existing]).ShouldBeFalse();
     }
@@ -92,7 +84,7 @@ public class VenueAvailabilityServiceTests
     {
         var venue = TestData.CreateVenue();
         var otherVenue = TestData.CreateVenue();
-        var existing = ReserveBooking(otherVenue, RequestedSlot);
+        var existing = TestData.ReserveBooking(otherVenue, RequestedSlot);
 
         VenueAvailabilityService.IsAvailable(venue.Id, RequestedSlot, [existing]).ShouldBeTrue();
     }

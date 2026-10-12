@@ -3,19 +3,32 @@ namespace TE.DomainStorytellingApplied.Domain.Tests;
 public class BookingTests
 {
     // The moment the booking is reserved, eight days before the slot.
-    private static readonly DateTime Now = new(2026, 10, 12, 9, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Now = TestData.Now;
 
     // One hour, in the middle of the day.
     private static readonly TimeSlot Slot = new(
         new DateTime(2026, 10, 20, 10, 0, 0, DateTimeKind.Utc),
         new DateTime(2026, 10, 20, 11, 0, 0, DateTimeKind.Utc));
 
-    private static readonly ContactDetails Contact = new("Anna Andersson", "anna@example.com", "070-000 00 00");
+    private static readonly ContactDetails Contact = TestData.Contact;
+
+    // 06:00 to 07:00, before the venue opens at 08:00.
+    private static readonly TimeSlot BeforeOpening = new(
+        new DateTime(2026, 10, 20, 6, 0, 0, DateTimeKind.Utc),
+        new DateTime(2026, 10, 20, 7, 0, 0, DateTimeKind.Utc));
+
+    // Starts at 14:00 the same day as Slot, and lasts the given number of hours.
+    private static TimeSlot AfternoonSlot(int hours)
+    {
+        var start = new DateTime(2026, 10, 20, 14, 0, 0, DateTimeKind.Utc);
+
+        return new TimeSlot(start, start.AddHours(hours));
+    }
 
     // A valid booking with a fee of 400 SEK, reserved at Now.
     private static Booking ReserveBooking()
     {
-        return Booking.Reserve(TestData.CreateVenue(), BookerType.Private, Slot, 10, Contact, Now);
+        return TestData.ReserveBooking(TestData.CreateVenue(), Slot);
     }
 
     // The same booking, paid straight away.
@@ -50,7 +63,7 @@ public class BookingTests
     }
 
     [Fact]
-    public void GivenAPrivateBookerAndAOneHourSlot_WhenReserving_ShouldCopyTheFeeFromTheVenue()
+    public void GivenAPrivateBookerAndAOneHourSlot_WhenReserving_ShouldGetTheVenuesFeeForThatSlot()
     {
         var booking = Booking.Reserve(TestData.CreateVenue(), BookerType.Private, Slot, 10, Contact, Now);
 
@@ -75,17 +88,21 @@ public class BookingTests
     [Fact]
     public void GivenATimeSlotOutsideOpeningHours_WhenReserving_ShouldThrow()
     {
-        var beforeOpening = new TimeSlot(
-            new DateTime(2026, 10, 20, 6, 0, 0, DateTimeKind.Utc),
-            new DateTime(2026, 10, 20, 7, 0, 0, DateTimeKind.Utc));
-
-        Should.Throw<ArgumentException>(() => Booking.Reserve(TestData.CreateVenue(), BookerType.Private, beforeOpening, 10, Contact, Now));
+        Should.Throw<ArgumentException>(() => Booking.Reserve(TestData.CreateVenue(), BookerType.Private, BeforeOpening, 10, Contact, Now));
     }
 
     [Fact]
     public void GivenNoParticipants_WhenReserving_ShouldThrow()
     {
         Should.Throw<ArgumentException>(() => Booking.Reserve(TestData.CreateVenue(), BookerType.Private, Slot, 0, Contact, Now));
+    }
+
+    [Fact]
+    public void GivenOneParticipant_WhenReserving_ShouldBeAllowed()
+    {
+        var booking = Booking.Reserve(TestData.CreateVenue(), BookerType.Private, Slot, 1, Contact, Now);
+
+        booking.ParticipantCount.ShouldBe(1);
     }
 
     [Fact]
@@ -158,14 +175,13 @@ public class BookingTests
     [Fact]
     public void GivenAnAlreadyPaidBooking_WhenPayingAgain_ShouldThrow()
     {
-        var booking = ReserveBooking();
-        booking.Pay(SwishPayment(400m, Now), Now);
+        var booking = ReserveAndPayBooking();
 
         Should.Throw<InvalidOperationException>(() => booking.Pay(SwishPayment(400m, Now), Now));
     }
 
     [Fact]
-    public void GivenAFailedPayment_WhenPaying_ShouldLeaveTheBookingReserved()
+    public void GivenAPaymentWithTheWrongAmount_WhenPaying_ShouldLeaveTheBookingReserved()
     {
         var booking = ReserveBooking();
 
@@ -194,12 +210,12 @@ public class BookingTests
 
         var confirmed = booking.DomainEvents.ShouldHaveSingleItem().ShouldBeOfType<BookingConfirmed>();
         confirmed.BookingId.ShouldBe(booking.Id);
-        confirmed.ContactEmail.ShouldBe("anna@example.com");
+        confirmed.ContactEmail.ShouldBe(Contact.Email);
         confirmed.Fee.ShouldBe(new Money(400m, "SEK"));
     }
 
     [Fact]
-    public void GivenAFailedPayment_WhenPaying_ShouldNotRecordAnEvent()
+    public void GivenAPaymentWithTheWrongAmount_WhenPaying_ShouldNotRecordAnEvent()
     {
         var booking = ReserveBooking();
 
@@ -258,6 +274,7 @@ public class BookingTests
     {
         var booking = ReserveBooking();
 
+        // Still Reserved this long after the hold ran out, because nothing has called Expire.
         booking.Cancel(Slot.Start.AddHours(-1));
 
         booking.IsLateCancellation.ShouldBeFalse();
@@ -287,9 +304,9 @@ public class BookingTests
     public void GivenANewSlotOfTheSameLength_WhenChangingTimeSlot_ShouldReplaceItAndStayTheSameBooking()
     {
         var venue = TestData.CreateVenue();
-        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
+        var booking = TestData.ReserveBooking(venue, Slot);
         var idBefore = booking.Id;
-        var laterSlot = SlotStartingAtTwo(hours: 1);
+        var laterSlot = AfternoonSlot(hours: 1);
 
         booking.ChangeTimeSlot(venue, laterSlot);
 
@@ -302,8 +319,8 @@ public class BookingTests
     public void GivenAnUnpaidBookingAndALongerSlot_WhenChangingTimeSlot_ShouldWorkOutTheFeeAgain()
     {
         var venue = TestData.CreateVenue();
-        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
-        var twoHours = SlotStartingAtTwo(hours: 2);
+        var booking = TestData.ReserveBooking(venue, Slot);
+        var twoHours = AfternoonSlot(hours: 2);
 
         booking.ChangeTimeSlot(venue, twoHours);
 
@@ -315,9 +332,9 @@ public class BookingTests
     public void GivenAPaidBookingAndASlotThatCostsTheSame_WhenChangingTimeSlot_ShouldBeAllowed()
     {
         var venue = TestData.CreateVenue();
-        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
+        var booking = TestData.ReserveBooking(venue, Slot);
         booking.Pay(SwishPayment(400m, Now), Now);
-        var laterSlot = SlotStartingAtTwo(hours: 1);
+        var laterSlot = AfternoonSlot(hours: 1);
 
         booking.ChangeTimeSlot(venue, laterSlot);
 
@@ -329,10 +346,10 @@ public class BookingTests
     public void GivenAPaidBookingAndASlotThatCostsMore_WhenChangingTimeSlot_ShouldThrowAndKeepTheOldSlotAndFee()
     {
         var venue = TestData.CreateVenue();
-        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
+        var booking = TestData.ReserveBooking(venue, Slot);
         booking.Pay(SwishPayment(400m, Now), Now);
 
-        Should.Throw<ArgumentException>(() => booking.ChangeTimeSlot(venue, SlotStartingAtTwo(hours: 2)));
+        Should.Throw<ArgumentException>(() => booking.ChangeTimeSlot(venue, AfternoonSlot(hours: 2)));
 
         booking.TimeSlot.ShouldBe(Slot);
         booking.Fee.ShouldBe(new Money(400m, "SEK"));
@@ -342,12 +359,8 @@ public class BookingTests
     public void GivenANewSlotOutsideOpeningHours_WhenChangingTimeSlot_ShouldThrowAndKeepTheOldSlot()
     {
         var venue = TestData.CreateVenue();
-        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
-        var beforeOpening = new TimeSlot(
-            new DateTime(2026, 10, 20, 6, 0, 0, DateTimeKind.Utc),
-            new DateTime(2026, 10, 20, 7, 0, 0, DateTimeKind.Utc));
-
-        Should.Throw<ArgumentException>(() => booking.ChangeTimeSlot(venue, beforeOpening));
+        var booking = TestData.ReserveBooking(venue, Slot);
+        Should.Throw<ArgumentException>(() => booking.ChangeTimeSlot(venue, BeforeOpening));
 
         booking.TimeSlot.ShouldBe(Slot);
     }
@@ -358,24 +371,27 @@ public class BookingTests
         var booking = ReserveBooking();
         var otherVenue = TestData.CreateVenue();
 
-        Should.Throw<ArgumentException>(() => booking.ChangeTimeSlot(otherVenue, SlotStartingAtTwo(hours: 1)));
+        Should.Throw<ArgumentException>(() => booking.ChangeTimeSlot(otherVenue, AfternoonSlot(hours: 1)));
     }
 
     [Fact]
     public void GivenACancelledBooking_WhenChangingTimeSlot_ShouldThrow()
     {
         var venue = TestData.CreateVenue();
-        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
+        var booking = TestData.ReserveBooking(venue, Slot);
         booking.Cancel(Now);
 
-        Should.Throw<InvalidOperationException>(() => booking.ChangeTimeSlot(venue, SlotStartingAtTwo(hours: 1)));
+        Should.Throw<InvalidOperationException>(() => booking.ChangeTimeSlot(venue, AfternoonSlot(hours: 1)));
     }
 
-    private static TimeSlot SlotStartingAtTwo(int hours)
+    [Fact]
+    public void GivenAnExpiredBooking_WhenChangingTimeSlot_ShouldThrow()
     {
-        var start = new DateTime(2026, 10, 20, 14, 0, 0, DateTimeKind.Utc);
+        var venue = TestData.CreateVenue();
+        var booking = TestData.ReserveBooking(venue, Slot);
+        booking.Expire(Now.AddMinutes(16));
 
-        return new TimeSlot(start, start.AddHours(hours));
+        Should.Throw<InvalidOperationException>(() => booking.ChangeTimeSlot(venue, AfternoonSlot(hours: 1)));
     }
 
     // ----- Expire -----
@@ -435,10 +451,10 @@ public class BookingTests
     public void GivenAnExpiredBooking_WhenPaying_ShouldThrow()
     {
         var booking = ReserveBooking();
-        var later = Now.AddMinutes(16);
-        booking.Expire(later);
+        booking.Expire(Now.AddMinutes(16));
 
-        Should.Throw<InvalidOperationException>(() => booking.Pay(SwishPayment(400m, later), later));
+        // Paid at Now, inside the hold time, so only the status stops the payment.
+        Should.Throw<InvalidOperationException>(() => booking.Pay(SwishPayment(400m, Now), Now));
     }
 
     [Fact]

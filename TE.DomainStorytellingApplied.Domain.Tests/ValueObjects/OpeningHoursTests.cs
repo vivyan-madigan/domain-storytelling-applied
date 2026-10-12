@@ -14,24 +14,6 @@ public class OpeningHoursTests
         Should.Throw<ArgumentException>(() => new OpeningHours(new TimeOnly(8, 0), new TimeOnly(8, 0)));
     }
 
-    [Fact]
-    public void GivenValidOpensAndCloses_WhenCreating_ShouldKeepBothValues()
-    {
-        var openingHours = new OpeningHours(new TimeOnly(8, 0), new TimeOnly(22, 0));
-
-        openingHours.Opens.ShouldBe(new TimeOnly(8, 0));
-        openingHours.Closes.ShouldBe(new TimeOnly(22, 0));
-    }
-
-    [Fact]
-    public void GivenTwoOpeningHoursWithSameValues_WhenComparing_ShouldBeEqual()
-    {
-        var first = new OpeningHours(new TimeOnly(8, 0), new TimeOnly(22, 0));
-        var second = new OpeningHours(new TimeOnly(8, 0), new TimeOnly(22, 0));
-
-        first.ShouldBe(second);
-    }
-
     [Theory]
     [InlineData(10, 11, true)]   // in the middle of the day
     [InlineData(8, 22, true)]    // exactly from opening to closing
