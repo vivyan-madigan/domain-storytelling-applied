@@ -22,6 +22,9 @@ public sealed class Booking
 
     public Guid VenueId { get; private set; }
 
+    // Kept so the fee can be worked out again if the booking is moved to another time.
+    public BookerType BookerType { get; private set; }
+
     public TimeSlot TimeSlot { get; private set; }
 
     public int ParticipantCount { get; private set; }
@@ -40,14 +43,18 @@ public sealed class Booking
     // True when a confirmed booking was cancelled less than 48 hours before it starts.
     public bool IsLateCancellation { get; private set; }
 
+    // A reserved or confirmed booking holds its time. A cancelled or expired one has given it back.
+    public bool IsHoldingItsTime => Status == BookingStatus.Reserved || Status == BookingStatus.Confirmed;
+
     // Read-only from outside: only the booking itself can record an event.
     public IReadOnlyList<IDomainEvent> DomainEvents => _domainEvents;
 
     // Private: the only way to create a booking from outside is Reserve.
-    private Booking(Guid venueId, TimeSlot timeSlot, int participantCount, ContactDetails contact, Money fee, DateTime reservedUntil)
+    private Booking(Guid venueId, BookerType bookerType, TimeSlot timeSlot, int participantCount, ContactDetails contact, Money fee, DateTime reservedUntil)
     {
         Id = Guid.NewGuid();
         VenueId = venueId;
+        BookerType = bookerType;
         TimeSlot = timeSlot;
         ParticipantCount = participantCount;
         Contact = contact;
@@ -87,7 +94,7 @@ public sealed class Booking
         // The fee is copied, so a later price change on the venue does not touch this booking.
         var fee = venue.CalculateFee(timeSlot, bookerType);
 
-        return new Booking(venue.Id, timeSlot, participantCount, contact, fee, now + ReservationHoldTime);
+        return new Booking(venue.Id, bookerType, timeSlot, participantCount, contact, fee, now + ReservationHoldTime);
     }
 
     // Paying confirms the booking. The current time is passed in, so the rule can be tested without waiting.
@@ -127,6 +134,38 @@ public sealed class Booking
 
         IsLateCancellation = Status == BookingStatus.Confirmed && timeUntilStart < CancellationDeadline;
         Status = BookingStatus.Cancelled;
+    }
+
+    // Moves the booking to another time. The time slot is not edited, it is replaced:
+    // TimeSlot has no setters, so the booking takes a whole new one.
+    // The fee follows the new slot. A paid booking has already been charged,
+    // so it can only be moved to a time that costs the same.
+    public void ChangeTimeSlot(Venue venue, TimeSlot timeSlot)
+    {
+        if (Status == BookingStatus.Cancelled || Status == BookingStatus.Expired)
+        {
+            throw new InvalidOperationException("A closed booking cannot be moved.");
+        }
+
+        if (venue.Id != VenueId)
+        {
+            throw new ArgumentException("That is not the venue of this booking.", nameof(venue));
+        }
+
+        if (!venue.IsOpenDuring(timeSlot))
+        {
+            throw new ArgumentException($"{venue.Name} is closed at that time.", nameof(timeSlot));
+        }
+
+        var fee = venue.CalculateFee(timeSlot, BookerType);
+
+        if (Status == BookingStatus.Confirmed && fee != Fee)
+        {
+            throw new ArgumentException("A paid booking can only be moved to a time that costs the same.", nameof(timeSlot));
+        }
+
+        TimeSlot = timeSlot;
+        Fee = fee;
     }
 
     // Releases a reservation that was not paid in time. For any other booking it does nothing,

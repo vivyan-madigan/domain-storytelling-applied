@@ -43,6 +43,7 @@ public class BookingTests
 
         booking.Id.ShouldNotBe(Guid.Empty);
         booking.VenueId.ShouldBe(venue.Id);
+        booking.BookerType.ShouldBe(BookerType.Private);
         booking.TimeSlot.ShouldBe(Slot);
         booking.ParticipantCount.ShouldBe(10);
         booking.Contact.ShouldBe(Contact);
@@ -278,6 +279,103 @@ public class BookingTests
         booking.Cancel(Now);
 
         Should.Throw<InvalidOperationException>(() => booking.Pay(SwishPayment(400m, Now), Now));
+    }
+
+    // ----- Change time slot -----
+
+    [Fact]
+    public void GivenANewSlotOfTheSameLength_WhenChangingTimeSlot_ShouldReplaceItAndStayTheSameBooking()
+    {
+        var venue = TestData.CreateVenue();
+        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
+        var idBefore = booking.Id;
+        var laterSlot = SlotStartingAtTwo(hours: 1);
+
+        booking.ChangeTimeSlot(venue, laterSlot);
+
+        booking.TimeSlot.ShouldBe(laterSlot);
+        booking.Id.ShouldBe(idBefore);
+        booking.Fee.ShouldBe(new Money(400m, "SEK"));
+    }
+
+    [Fact]
+    public void GivenAnUnpaidBookingAndALongerSlot_WhenChangingTimeSlot_ShouldWorkOutTheFeeAgain()
+    {
+        var venue = TestData.CreateVenue();
+        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
+        var twoHours = SlotStartingAtTwo(hours: 2);
+
+        booking.ChangeTimeSlot(venue, twoHours);
+
+        booking.TimeSlot.ShouldBe(twoHours);
+        booking.Fee.ShouldBe(new Money(800m, "SEK"));
+    }
+
+    [Fact]
+    public void GivenAPaidBookingAndASlotThatCostsTheSame_WhenChangingTimeSlot_ShouldBeAllowed()
+    {
+        var venue = TestData.CreateVenue();
+        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
+        booking.Pay(SwishPayment(400m, Now), Now);
+        var laterSlot = SlotStartingAtTwo(hours: 1);
+
+        booking.ChangeTimeSlot(venue, laterSlot);
+
+        booking.TimeSlot.ShouldBe(laterSlot);
+        booking.Status.ShouldBe(BookingStatus.Confirmed);
+    }
+
+    [Fact]
+    public void GivenAPaidBookingAndASlotThatCostsMore_WhenChangingTimeSlot_ShouldThrowAndKeepTheOldSlotAndFee()
+    {
+        var venue = TestData.CreateVenue();
+        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
+        booking.Pay(SwishPayment(400m, Now), Now);
+
+        Should.Throw<ArgumentException>(() => booking.ChangeTimeSlot(venue, SlotStartingAtTwo(hours: 2)));
+
+        booking.TimeSlot.ShouldBe(Slot);
+        booking.Fee.ShouldBe(new Money(400m, "SEK"));
+    }
+
+    [Fact]
+    public void GivenANewSlotOutsideOpeningHours_WhenChangingTimeSlot_ShouldThrowAndKeepTheOldSlot()
+    {
+        var venue = TestData.CreateVenue();
+        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
+        var beforeOpening = new TimeSlot(
+            new DateTime(2026, 10, 20, 6, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 10, 20, 7, 0, 0, DateTimeKind.Utc));
+
+        Should.Throw<ArgumentException>(() => booking.ChangeTimeSlot(venue, beforeOpening));
+
+        booking.TimeSlot.ShouldBe(Slot);
+    }
+
+    [Fact]
+    public void GivenAnotherVenue_WhenChangingTimeSlot_ShouldThrow()
+    {
+        var booking = ReserveBooking();
+        var otherVenue = TestData.CreateVenue();
+
+        Should.Throw<ArgumentException>(() => booking.ChangeTimeSlot(otherVenue, SlotStartingAtTwo(hours: 1)));
+    }
+
+    [Fact]
+    public void GivenACancelledBooking_WhenChangingTimeSlot_ShouldThrow()
+    {
+        var venue = TestData.CreateVenue();
+        var booking = Booking.Reserve(venue, BookerType.Private, Slot, 10, Contact, Now);
+        booking.Cancel(Now);
+
+        Should.Throw<InvalidOperationException>(() => booking.ChangeTimeSlot(venue, SlotStartingAtTwo(hours: 1)));
+    }
+
+    private static TimeSlot SlotStartingAtTwo(int hours)
+    {
+        var start = new DateTime(2026, 10, 20, 14, 0, 0, DateTimeKind.Utc);
+
+        return new TimeSlot(start, start.AddHours(hours));
     }
 
     // ----- Expire -----
